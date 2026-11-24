@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Consumo de Agua</title>
+<style>
+*{box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif}
+body{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);margin:0;padding:20px;min-height:100vh}
+.container{max-width:1600px;margin:0 auto;background:white;border-radius:20px;padding:30px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+h1{color:#333;text-align:center;margin-bottom:30px;font-size:2.5em}
+h2{color:#4a5568;margin:20px 0 15px;border-bottom:3px solid #667eea;padding-bottom:10px}
+h3{color:#4a5568;margin:15px 0 10px}
+.form-section{background:#f8f9fa;border-radius:15px;padding:25px;margin-bottom:30px;box-shadow:0 5px 15px rgba(0,0,0,.08)}
+.form-row{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end}
+.form-group{flex:1;min-width:200px}
+label{display:block;margin-bottom:8px;color:#555;font-weight:600;font-size:.9em}
+input,select{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:1em}
+input:focus,select:focus{outline:none;border-color:#667eea}
+button{background:#667eea;color:white;border:none;padding:12px 30px;border-radius:8px;font-size:1em;font-weight:600;cursor:pointer;box-shadow:0 4px 6px rgba(0,0,0,.1);margin:5px}
+button:hover{background:#5a67d8;transform:translateY(-2px)}
+.btn-excel{background:#38a169}.btn-excel:hover{background:#2f855a}
+.btn-import{background:#805ad5}.btn-import:hover{background:#6b46c1}
+.btn-danger{background:#f56565}.btn-danger:hover{background:#e53e3e}
+.readings-section{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:15px;margin-bottom:30px}
+.reading-card{background:white;border:2px solid #e0e0e0;border-radius:10px;padding:15px}
+.reading-card:hover{border-color:#667eea;box-shadow:0 5px 15px rgba(102,126,234,.2)}
+.reading-card label{margin-bottom:5px;color:#333;font-weight:700}
+.reading-card input{padding:8px;font-size:.95em}
+.results-section{background:#f8f9fa;border-radius:15px;padding:25px;overflow-x:auto;margin-bottom:30px}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th{background:#667eea;color:white;padding:12px;font-weight:600}
+td,th{border:1px solid #ddd;padding:10px;text-align:center}
+tr:nth-child(even){background-color:#f2f2f2}
+.consumo-alto{background-color:#ffebee!important;color:#c62828;font-weight:600}
+.total-general{background:#e8eaf6;font-weight:700}
+.charts-container{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:30px}
+.chart-card{background:white;border-radius:15px;padding:20px;box-shadow:0 5px 15px rgba(0,0,0,.1)}
+canvas{max-height:300px;width:100%!important}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-bottom:30px}
+.stat-box{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:20px;border-radius:10px;text-align:center}
+.stat-box h3{margin:0 0 10px;font-size:1.1em;color:white}
+.stat-box .stat-value{font-size:2em;font-weight:bold}
+.tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:10px 20px;background:#e2e8f0;border-radius:8px;cursor:pointer;font-weight:600;transition:all .3s}
+.tab.active{background:#667eea;color:white}
+.tab-content{display:none}.tab-content.active{display:block}
+.matriz-container{overflow-x:auto;max-height:600px;overflow-y:auto}
+.matriz-table th{position:sticky;top:0;z-index:10}
+.matriz-table td:first-child,.matriz-table th:first-child{position:sticky;left:0;background:#667eea;color:white;font-weight:700;z-index:5;min-width:120px}
+.matriz-table tr:nth-child(even) td:first-child{background:#5a67d8}
+.matriz-table tr:nth-child(odd) td:first-child{background:#667eea}
+.preview-section{background:#fef3c7;border:2px dashed #f59e0b;border-radius:15px;padding:20px;margin:20px 0}
+.preview-section h3{color:#92400e;margin-top:0}
+.preview-info{background:white;padding:15px;border-radius:8px;margin-bottom:15px;font-size:.95em}
+.preview-info strong{color:#92400e}
+.btn-confirm{background:#f59e0b}.btn-confirm:hover{background:#d97706}
+.btn-cancel{background:#6b7280}.btn-cancel:hover{background:#4b5563}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="container">
+<h1>📊 Control de Consumo de Agua</h1>
+<div class="tabs">
+<div class="tab active" onclick="cambiarTab('lecturas')">📝 Lecturas</div>
+<div class="tab" onclick="cambiarTab('matriz')">📋 Vista Matricial</div>
+<div class="tab" onclick="cambiarTab('estadisticas')">📈 Estadísticas</div>
+<div class="tab" onclick="cambiarTab('historial')">📚 Historial</div>
+</div>
+
+<div id="tab-lecturas" class="tab-content active">
+<div class="form-section">
+<div class="form-row">
+<div class="form-group">
+<label>📅 Fecha de Lectura</label>
+<input type="date" id="fechaLectura">
+</div>
+<div>
+<button onclick="cargarUltimaLectura()">📂 Cargar última</button>
+<button onclick="guardarLecturas()" class="btn-excel">💾 Guardar</button>
+<button onclick="limpiarCampos()" class="btn-danger">🗑️ Limpiar</button>
+</div>
+</div>
+<div class="form-row" style="margin-top:15px">
+<div class="form-group">
+<button onclick="exportarAExcel()" class="btn-excel" style="width:100%">📥 Exportar Excel (matricial)</button>
+</div>
+<div class="form-group">
+<input type="file" id="importarExcel" accept=".xlsx,.xls" style="display:none">
+<button onclick="document.getElementById('importarExcel').click()" class="btn-import" style="width:100%">📤 Importar desde Excel</button>
+</div>
+</div>
+</div>
+
+<div id="previewImport" class="preview-section" style="display:none">
+<h3>👁️ Vista previa de datos importados</h3>
+<div class="preview-info" id="previewInfo"></div>
+<div class="matriz-container">
+<table class="matriz-table" id="previewTable">
+<thead id="previewHead"></thead>
+<tbody id="previewBody"></tbody>
+</table>
+</div>
+<div style="margin-top:15px">
+<button onclick="confirmarImportacion()" class="btn-confirm">✅ Confirmar importación</button>
+<button onclick="cancelarImportacion()" class="btn-cancel">❌ Cancelar</button>
+</div>
+</div>
+
+<div class="readings-section" id="lecturasContadores"></div>
+
+<div class="stats-grid">
+<div class="stat-box"><h3>Total Consumo Mes</h3><div class="stat-value" id="totalMesStats">0</div></div>
+<div class="stat-box"><h3>Promedio por Apartamento</h3><div class="stat-value" id="promedioStats">0</div></div>
+<div class="stat-box"><h3>Mayor Consumo</h3><div class="stat-value" id="mayorConsumoStats">-</div></div>
+<div class="stat-box"><h3>Menor Consumo</h3><div class="stat-value" id="menorConsumoStats">-</div></div>
+</div>
+
+<div class="results-section">
+<h2>📊 Consumos Calculados</h2>
+<table>
+<thead>
+<tr>
+<th>Apartamento</th><th>Lectura Actual</th><th>Consumo 3 días</th>
+<th>Consumo Semana</th><th>Consumo Mes</th><th>Promedio diario</th>
+</tr>
+</thead>
+<tbody id="cuerpoTabla"></tbody>
+<tfoot>
+<tr class="total-general">
+<td colspan="2"><strong>TOTALES</strong></td>
+<td id="total3dias">0</td><td id="totalSemana">0</td>
+<td id="totalMes">0</td><td id="promedioGeneral">0</td>
+</tr>
+</tfoot>
+</table>
+</div>
+</div>
+
+<div id="tab-matriz" class="tab-content">
+<div class="form-section">
+<h2>📋 Vista Matricial (como en tu Excel original)</h2>
+<p style="color:#666">Una fila por apartamento, una columna por fecha de lectura.</p>
+<div style="margin-top:15px">
+<button onclick="exportarMatricial()" class="btn-excel">📥 Exportar esta tabla a Excel</button>
+<button onclick="cargarMatriz()">🔄 Actualizar vista</button>
+</div>
+</div>
+<div class="results-section">
+<div class="matriz-container">
+<table class="matriz-table" id="matrizTable">
+<thead id="matrizHead"></thead>
+<tbody id="matrizBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<div id="tab-estadisticas" class="tab-content">
+<div class="charts-container">
+<div class="chart-card"><h3>Consumo por Apartamento (Mes)</h3><canvas id="graficoBarras"></canvas></div>
+<div class="chart-card"><h3>Distribución de Consumo</h3><canvas id="graficoTorta"></canvas></div>
+<div class="chart-card"><h3>Evolución Temporal</h3><canvas id="graficoLinea"></canvas></div>
+<div class="chart-card"><h3>Comparativa Semanal</h3><canvas id="graficoComparativo"></canvas></div>
+</div>
+</div>
+
+<div id="tab-historial" class="tab-content">
+<div class="form-section">
+<h3>📚 Historial de Lecturas</h3>
+<div class="form-row">
+<div class="form-group">
+<label>Filtrar por fecha</label>
+<input type="date" id="filtroFecha">
+</div>
+<div class="form-group">
+<label>Filtrar por apartamento</label>
+<select id="filtroApartamento"><option value="">Todos</option></select>
+</div>
+<div>
+<button onclick="cargarHistorial()">🔍 Aplicar filtros</button>
+<button onclick="exportarHistorial()" class="btn-excel">📥 Exportar historial</button>
+</div>
+</div>
+</div>
+<div class="results-section">
+<table id="tablaHistorial">
+<thead><tr><th>Fecha</th><th>Apartamento</th><th>Lectura</th></tr></thead>
+<tbody id="cuerpoHistorial"></tbody>
+</table>
+</div>
+</div>
+</div>
+<script>
+const apartamentos=[
+{id:'102',nombre:'Apartamento 102'},{id:'202',nombre:'Apartamento 202'},
+{id:'101',nombre:'Apartamento 101'},{id:'201',nombre:'Apartamento 201'},
+{id:'106',nombre:'Apartamento 106'},{id:'lavadora',nombre:'Lavadora'},
+{id:'103',nombre:'Apartamento 103'},{id:'107',nombre:'Apartamento 107'},
+{id:'105',nombre:'Apartamento 105'},{id:'104',nombre:'Apartamento 104'}
+];
+const STORAGE_KEY='lecturasAgua';
+let charts={};
+let datosImportadosPendientes=null;
+
+function cambiarTab(tab){
+document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+const idx={lecturas:0,matriz:1,estadisticas:2,historial:3}[tab];
+document.querySelectorAll('.tab')[idx].classList.add('active');
+document.getElementById('tab-'+tab).classList.add('active');
+if(tab==='estadisticas')actualizarGraficos();
+if(tab==='historial')cargarHistorial();
+if(tab==='matriz')cargarMatriz();
+}
+
+function generarInputsLecturas(){
+const contenedor=document.getElementById('lecturasContadores');
+contenedor.innerHTML='';
+apartamentos.forEach(apto=>{
+const card=document.createElement('div');
+card.className='reading-card';
+card.innerHTML='<label>'+apto.nombre+'</label><input type="number" id="lectura_'+apto.id+'" placeholder="Lectura actual" step="1" min="0">';
+contenedor.appendChild(card);
+});
+const selectFiltro=document.getElementById('filtroApartamento');
+apartamentos.forEach(apto=>{
+const option=document.createElement('option');
+option.value=apto.id;
+option.textContent=apto.nombre;
+selectFiltro.appendChild(option);
+});
+}
+
+function cargarDatosGuardados(){
+const datos=localStorage.getItem(STORAGE_KEY);
+if(datos)return JSON.parse(datos);
+return{lecturas:[],ultimaFecha:null};
+}
+
+function guardarLecturas(){
+const fecha=document.getElementById('fechaLectura').value;
+if(!fecha){alert('Por favor, selecciona una fecha');return;}
+const lecturas={};
+apartamentos.forEach(apto=>{
+const input=document.getElementById('lectura_'+apto.id);
+lecturas[apto.id]=input.value?parseInt(input.value):null;
+});
+const datosGuardados=cargarDatosGuardados();
+const idxExistente=datosGuardados.lecturas.findIndex(r=>r.fecha===fecha);
+if(idxExistente>=0){
+datosGuardados.lecturas[idxExistente].lecturas=lecturas;
+}else{
+datosGuardados.lecturas.push({fecha:fecha,lecturas:lecturas});
+}
+datosGuardados.lecturas.sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+datosGuardados.ultimaFecha=fecha;
+localStorage.setItem(STORAGE_KEY,JSON.stringify(datosGuardados));
+alert('Lecturas guardadas correctamente');
+actualizarConsumos();
+}
+
+function construirMatrizDatos(datos){
+const fechas=datos.lecturas.map(r=>r.fecha);
+const cabecera=['Apartamento',...fechas,'Dif. últimas 2 lecturas','Promedio diario (últimas 2)'];
+const filas=apartamentos.map(apto=>{
+const fila=[apto.nombre];
+datos.lecturas.forEach(registro=>{
+const valor=registro.lecturas[apto.id];
+fila.push(valor!==null&&valor!==undefined?valor:'');
+});
+// Diferencia entre las últimas 2 lecturas
+let dif='',prom='';
+if(datos.lecturas.length>=2){
+const ultimo=datos.lecturas[datos.lecturas.length-1];
+const penultimo=datos.lecturas[datos.lecturas.length-2];
+const lUlt=ultimo.lecturas[apto.id];
+const lPen=penultimo.lecturas[apto.id];
+if(lUlt!==null&&lUlt!==undefined&&lPen!==null&&lPen!==undefined){
+const diferencia=Math.max(0,lUlt-lPen);
+const dias=Math.max(1,Math.round((new Date(ultimo.fecha)-new Date(penultimo.fecha))/(1000*60*60*24)));
+dif=diferencia;
+prom=(diferencia/dias).toFixed(1);
+}
+}
+fila.push(dif);
+fila.push(prom);
+return fila;
+});
+const filaTotales=['TOTAL'];
+datos.lecturas.forEach((_,colIdx)=>{
+let suma=0;
+apartamentos.forEach(apto=>{
+const v=datos.lecturas[colIdx].lecturas[apto.id];
+if(v!==null&&v!==undefined)suma+=v;
+});
+filaTotales.push(suma);
+});
+// Totales de las 2 nuevas columnas
+let sumaDif=0,sumaProm=0,contDif=0;
+apartamentos.forEach(apto=>{
+const filaApto=filas.find(f=>f[0]===apto.nombre);
+const dif=filaApto[filaApto.length-2];
+const prom=filaApto[filaApto.length-1];
+if(typeof dif==='number'){sumaDif+=dif;contDif++;}
+if(typeof prom==='number')sumaProm+=parseFloat(prom);
+});
+filaTotales.push(sumaDif);
+filaTotales.push(contDif>0?(sumaProm/contDif).toFixed(1):'');
+return[cabecera,...filas,filaTotales];
+}
+
+function construirMatrizConsumos(datos){
+if(datos.lecturas.length<2)return[['Apartamento','Sin datos suficientes']];
+const fechasConsumo=datos.lecturas.slice(1).map((r,i)=>datos.lecturas[i].fecha+' → '+r.fecha);
+const cabecera=['Apartamento',...fechasConsumo];
+const filas=apartamentos.map(apto=>{
+const fila=[apto.nombre];
+for(let i=1;i<datos.lecturas.length;i++){
+const la=datos.lecturas[i-1].lecturas[apto.id];
+const lc=datos.lecturas[i].lecturas[apto.id];
+if(la!==null&&lc!==null&&la!==undefined&&lc!==undefined){
+fila.push(Math.max(0,lc-la));
+}else{
+fila.push('');
+}
+}
+return fila;
+});
+return[cabecera,...filas];
+}
+
+function exportarAExcel(){
+const datos=cargarDatosGuardados();
+if(datos.lecturas.length===0){alert('No hay datos para exportar');return;}
+const wb=XLSX.utils.book_new();
+const matrizLecturas=construirMatrizDatos(datos);
+const wsLecturas=XLSX.utils.aoa_to_sheet(matrizLecturas);
+XLSX.utils.book_append_sheet(wb,wsLecturas,'Lecturas');
+const matrizConsumos=construirMatrizConsumos(datos);
+const wsConsumos=XLSX.utils.aoa_to_sheet(matrizConsumos);
+XLSX.utils.book_append_sheet(wb,wsConsumos,'Consumos');
+XLSX.writeFile(wb,'consumos_agua_'+new Date().toISOString().split('T')[0]+'.xlsx');
+}
+
+function exportarMatricial(){exportarAExcel();}
+
+document.getElementById('importarExcel').addEventListener('change',function(e){
+const file=e.target.files[0];
+if(!file)return;
+const reader=new FileReader();
+reader.onload=function(evt){
+try{
+const data=new Uint8Array(evt.target.result);
+const workbook=XLSX.read(data,{type:'array'});
+let hojaNombre=workbook.SheetNames.includes('Lecturas')?'Lecturas':workbook.SheetNames[0];
+const worksheet=workbook.Sheets[hojaNombre];
+const jsonData=XLSX.utils.sheet_to_json(worksheet,{header:1,raw:true});
+procesarImportacion(jsonData);
+}catch(err){
+alert('Error al leer el archivo: '+err.message);
+}
+};
+reader.readAsArrayBuffer(file);
+e.target.value='';
+});
+
+function procesarImportacion(jsonData){
+if(!jsonData||jsonData.length<2){alert('El archivo no tiene datos suficientes');return;}
+const cabecera=jsonData[0];
+const esMatricial=cabecera[0]&&(String(cabecera[0]).toLowerCase().includes('apartamento')||String(cabecera[0]).toLowerCase().includes('contador'))&&cabecera.length>1;
+let datosProcesados={lecturas:[]};
+if(esMatricial){
+const fechas=cabecera.slice(1).map(f=>normalizarFecha(f));
+for(let colIdx=1;colIdx<cabecera.length;colIdx++){
+const fecha=fechas[colIdx-1];
+if(!fecha)continue;
+const lecturasFecha={};
+for(let filaIdx=1;filaIdx<jsonData.length;filaIdx++){
+const fila=jsonData[filaIdx];
+const nombreApto=String(fila[0]).trim();
+if(nombreApto.toUpperCase()==='TOTAL')continue;
+const apto=apartamentos.find(a=>a.nombre.toLowerCase()===nombreApto.toLowerCase()||a.id===nombreApto||nombreApto.toLowerCase().includes(a.id));
+if(apto){
+const valor=fila[colIdx];
+if(valor!==''&&valor!==null&&valor!==undefined&&!isNaN(valor)){
+lecturasFecha[apto.id]=parseInt(valor);
+}
+}
+}
+if(Object.keys(lecturasFecha).length>0){
+datosProcesados.lecturas.push({fecha:fecha,lecturas:lecturasFecha});
+}
+}
+}else{
+for(let i=1;i<jsonData.length;i++){
+const fila=jsonData[i];
+if(!fila||fila.length<3)continue;
+const fecha=normalizarFecha(fila[0]);
+const nombreApto=String(fila[1]).trim();
+const lectura=parseInt(fila[2]);
+if(!fecha||isNaN(lectura))continue;
+const apto=apartamentos.find(a=>a.nombre.toLowerCase()===nombreApto.toLowerCase()||a.id===nombreApto||nombreApto.toLowerCase().includes(a.id));
+if(apto){
+let registro=datosProcesados.lecturas.find(r=>r.fecha===fecha);
+if(!registro){
+registro={fecha:fecha,lecturas:{}};
+datosProcesados.lecturas.push(registro);
+}
+registro.lecturas[apto.id]=lectura;
+}
+}
+}
+if(datosProcesados.lecturas.length===0){alert('No se pudieron detectar datos válidos en el archivo.');return;}
+datosProcesados.lecturas.sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+datosImportadosPendientes=datosProcesados;
+mostrarPreview(datosProcesados);
+}
+
+function normalizarFecha(valor){
+if(!valor)return null;
+if(typeof valor==='number'){
+const fecha=new Date((valor-25569)*86400*1000);
+return fecha.toISOString().split('T')[0];
+}
+const str=String(valor).trim();
+const d=new Date(str);
+if(!isNaN(d.getTime()))return d.toISOString().split('T')[0];
+return null;
+}
+
+function mostrarPreview(datos){
+const previewSection=document.getElementById('previewImport');
+const previewInfo=document.getElementById('previewInfo');
+const previewHead=document.getElementById('previewHead');
+const previewBody=document.getElementById('previewBody');
+const numFechas=datos.lecturas.length;
+let totalLecturas=0;
+datos.lecturas.forEach(r=>totalLecturas+=Object.keys(r.lecturas).length);
+previewInfo.innerHTML='<strong>📊 Resumen:</strong><br>• Fechas detectadas: <strong>'+numFechas+'</strong><br>• Lecturas totales: <strong>'+totalLecturas+'</strong><br>• Rango: <strong>'+datos.lecturas[0].fecha+'</strong> → <strong>'+datos.lecturas[datos.lecturas.length-1].fecha+'</strong>';
+const fechas=datos.lecturas.map(r=>r.fecha);
+let htmlHead='<tr><th>Apartamento</th>';
+fechas.forEach(f=>htmlHead+='<th>'+f+'</th>');
+htmlHead+='</tr>';
+previewHead.innerHTML=htmlHead;
+let htmlBody='';
+apartamentos.forEach(apto=>{
+let fila='<tr><td><strong>'+apto.nombre+'</strong></td>';
+datos.lecturas.forEach(registro=>{
+const v=registro.lecturas[apto.id];
+fila+='<td>'+(v!==null&&v!==undefined?v.toLocaleString():'-')+'</td>';
+});
+fila+='</tr>';
+htmlBody+=fila;
+});
+previewBody.innerHTML=htmlBody;
+previewSection.style.display='block';
+previewSection.scrollIntoView({behavior:'smooth'});
+}
+
+function confirmarImportacion(){
+if(!datosImportadosPendientes)return;
+const datosGuardados=cargarDatosGuardados();
+datosImportadosPendientes.lecturas.forEach(nuevoRegistro=>{
+const idx=datosGuardados.lecturas.findIndex(r=>r.fecha===nuevoRegistro.fecha);
+if(idx>=0){
+datosGuardados.lecturas[idx]=nuevoRegistro;
+}else{
+datosGuardados.lecturas.push(nuevoRegistro);
+}
+});
+datosGuardados.lecturas.sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+datosGuardados.ultimaFecha=datosGuardados.lecturas[datosGuardados.lecturas.length-1].fecha;
+localStorage.setItem(STORAGE_KEY,JSON.stringify(datosGuardados));
+alert('✅ Importación completada: '+datosImportadosPendientes.lecturas.length+' fechas procesadas');
+cancelarImportacion();
+actualizarConsumos();
+// Refrescar la vista que esté activa
+if(document.getElementById('tab-matriz').classList.contains('active'))cargarMatriz();
+if(document.getElementById('tab-estadisticas').classList.contains('active'))actualizarGraficos();
+if(document.getElementById('tab-historial').classList.contains('active'))cargarHistorial();
+}
+
+function cancelarImportacion(){
+datosImportadosPendientes=null;
+document.getElementById('previewImport').style.display='none';
+}
+
+function obtenerLecturasActuales(){
+const lecturas={};
+apartamentos.forEach(apto=>{
+const input=document.getElementById('lectura_'+apto.id);
+lecturas[apto.id]=input&&input.value?parseInt(input.value):null;
+});
+return lecturas;
+}
+
+// Calcula los consumos usando como referencia la lectura "actual" del input.
+// Si no hay input, usa la última lectura guardada.
+function calcularConsumosApartamento(aptoId,lecturaActual){
+const datos=cargarDatosGuardados();
+if(datos.lecturas.length===0)return{consumo3dias:null,consumoSemana:null,consumoMes:null,diasMes:0};
+// Si no hay lectura en el input, usar la última guardada como "actual"
+let lecturaRef=lecturaActual;
+let registrosConsiderar=datos.lecturas;
+if(lecturaRef===null||lecturaRef===undefined){
+const ultimo=datos.lecturas[datos.lecturas.length-1];
+lecturaRef=ultimo.lecturas[aptoId];
+registrosConsiderar=datos.lecturas.slice(0,-1);
+}
+if(lecturaRef===null||lecturaRef===undefined)return{consumo3dias:null,consumoSemana:null,consumoMes:null,diasMes:0};
+// Fecha de referencia: la del input o la última guardada
+let fechaRef;
+const fechaInput=document.getElementById('fechaLectura').value;
+if(fechaInput){fechaRef=new Date(fechaInput);}
+else{fechaRef=new Date(datos.lecturas[datos.lecturas.length-1].fecha);}
+let consumo3dias=null,consumoSemana=null,consumoMes=null;
+let dias3=0,diasSemana=0,diasMes=0;
+for(let i=registrosConsiderar.length-1;i>=0;i--){
+const registro=registrosConsiderar[i];
+const fechaRegistro=new Date(registro.fecha);
+const lecturaAnterior=registro.lecturas[aptoId];
+if(lecturaAnterior===null||lecturaAnterior===undefined)continue;
+const diffDias=Math.round((fechaRef-fechaRegistro)/(1000*60*60*24));
+if(diffDias<=0)continue;
+if(consumo3dias===null&&diffDias<=3){
+consumo3dias=Math.max(0,lecturaRef-lecturaAnterior);dias3=diffDias;
+}
+if(consumoSemana===null&&diffDias<=7){
+consumoSemana=Math.max(0,lecturaRef-lecturaAnterior);diasSemana=diffDias;
+}
+if(consumoMes===null&&diffDias<=30){
+consumoMes=Math.max(0,lecturaRef-lecturaAnterior);diasMes=diffDias;
+}
+}
+return{consumo3dias,consumoSemana,consumoMes,diasMes};
+}
+
+function actualizarConsumos(){
+const fechaActualInput=document.getElementById('fechaLectura').value;
+const datos=cargarDatosGuardados();
+if(!fechaActualInput&&datos.lecturas.length===0)return;
+const lecturasActuales=obtenerLecturasActuales();
+const cuerpoTabla=document.getElementById('cuerpoTabla');
+cuerpoTabla.innerHTML='';
+let total3dias=0,totalSemana=0,totalMes=0;
+let valoresMes=[];
+let maxConsumo={valor:0,apto:''};
+let minConsumo={valor:Infinity,apto:''};
+apartamentos.forEach(apto=>{
+let lecturaActual=lecturasActuales[apto.id];
+// Si no hay input, mostrar la última guardada
+if(lecturaActual===null&&datos.lecturas.length>0){
+const ultimo=datos.lecturas[datos.lecturas.length-1];
+lecturaActual=ultimo.lecturas[apto.id];
+}
+const consumos=calcularConsumosApartamento(apto.id,lecturasActuales[apto.id]);
+const promedioDiario=consumos.consumoMes!==null&&consumos.diasMes>0?(consumos.consumoMes/consumos.diasMes).toFixed(1):'N/A';
+if(consumos.consumo3dias!==null)total3dias+=consumos.consumo3dias;
+if(consumos.consumoSemana!==null)totalSemana+=consumos.consumoSemana;
+if(consumos.consumoMes!==null){
+totalMes+=consumos.consumoMes;
+valoresMes.push(consumos.consumoMes);
+if(consumos.consumoMes>maxConsumo.valor)maxConsumo={valor:consumos.consumoMes,apto:apto.nombre};
+if(consumos.consumoMes<minConsumo.valor)minConsumo={valor:consumos.consumoMes,apto:apto.nombre};
+}
+const fila=document.createElement('tr');
+if(consumos.consumoMes!==null&&consumos.consumoMes>1000)fila.className='consumo-alto';
+fila.innerHTML='<td><strong>'+apto.nombre+'</strong></td><td>'+(lecturaActual!==null&&lecturaActual!==undefined?lecturaActual.toLocaleString():'-')+'</td><td>'+(consumos.consumo3dias!==null?consumos.consumo3dias.toLocaleString():'-')+'</td><td>'+(consumos.consumoSemana!==null?consumos.consumoSemana.toLocaleString():'-')+'</td><td>'+(consumos.consumoMes!==null?consumos.consumoMes.toLocaleString():'-')+'</td><td>'+promedioDiario+'</td>';
+cuerpoTabla.appendChild(fila);
+});
+document.getElementById('total3dias').textContent=total3dias.toLocaleString();
+document.getElementById('totalSemana').textContent=totalSemana.toLocaleString();
+document.getElementById('totalMes').textContent=totalMes.toLocaleString();
+document.getElementById('totalMesStats').textContent=totalMes.toLocaleString();
+const promedioGeneral=valoresMes.length>0?(totalMes/valoresMes.length).toFixed(1):0;
+document.getElementById('promedioGeneral').textContent=promedioGeneral;
+document.getElementById('promedioStats').textContent=promedioGeneral;
+document.getElementById('mayorConsumoStats').innerHTML=maxConsumo.apto?maxConsumo.apto+'<br>'+maxConsumo.valor.toLocaleString():'-';
+document.getElementById('menorConsumoStats').innerHTML=minConsumo.apto?minConsumo.apto+'<br>'+minConsumo.valor.toLocaleString():'-';
+}
+
+function cargarMatriz(){
+const datos=cargarDatosGuardados();
+const head=document.getElementById('matrizHead');
+const body=document.getElementById('matrizBody');
+if(datos.lecturas.length===0){
+head.innerHTML='';
+body.innerHTML='<tr><td colspan="2">No hay datos guardados. Importa un Excel o guarda lecturas.</td></tr>';
+return;
+}
+// Cabecera con fechas + 2 columnas nuevas
+let htmlHead='<tr><th>Apartamento</th>';
+datos.lecturas.forEach(r=>htmlHead+='<th>'+r.fecha+'</th>');
+htmlHead+='<th style="background:#38a169">Dif. últimas 2</th>';
+htmlHead+='<th style="background:#38a169">Promedio diario</th>';
+htmlHead+='</tr>';
+head.innerHTML=htmlHead;
+// Últimas 2 lecturas para el cálculo
+const ultimo=datos.lecturas[datos.lecturas.length-1];
+const penultimo=datos.lecturas.length>=2?datos.lecturas[datos.lecturas.length-2]:null;
+const diasEntreUltimas=penultimo?Math.max(1,Math.round((new Date(ultimo.fecha)-new Date(penultimo.fecha))/(1000*60*60*24))):0;
+
+let htmlBody='';
+let sumaDifTotal=0,sumaPromTotal=0,contProm=0;
+apartamentos.forEach(apto=>{
+let fila='<tr><td><strong>'+apto.nombre+'</strong></td>';
+datos.lecturas.forEach(registro=>{
+const v=registro.lecturas[apto.id];
+fila+='<td>'+(v!==null&&v!==undefined?v.toLocaleString():'-')+'</td>';
+});
+// Diferencia últimas 2 y promedio diario
+let dif='-',prom='-';
+if(penultimo){
+const lUlt=ultimo.lecturas[apto.id];
+const lPen=penultimo.lecturas[apto.id];
+if(lUlt!==null&&lUlt!==undefined&&lPen!==null&&lPen!==undefined){
+const diferencia=Math.max(0,lUlt-lPen);
+dif=diferencia.toLocaleString();
+prom=(diferencia/diasEntreUltimas).toFixed(1);
+sumaDifTotal+=diferencia;
+sumaPromTotal+=parseFloat(prom);
+contProm++;
+}
+}
+fila+='<td style="background:#e6fffa;font-weight:600">'+dif+'</td>';
+fila+='<td style="background:#e6fffa;font-weight:600">'+prom+'</td>';
+fila+='</tr>';
+htmlBody+=fila;
+});
+// Fila de totales
+let filaTotales='<tr class="total-general"><td><strong>TOTAL</strong></td>';
+datos.lecturas.forEach((_,colIdx)=>{
+let suma=0;
+apartamentos.forEach(apto=>{
+const v=datos.lecturas[colIdx].lecturas[apto.id];
+if(v!==null&&v!==undefined)suma+=v;
+});
+filaTotales+='<td><strong>'+suma.toLocaleString()+'</strong></td>';
+});
+filaTotales+='<td style="background:#c6f6d5"><strong>'+sumaDifTotal.toLocaleString()+'</strong></td>';
+filaTotales+='<td style="background:#c6f6d5"><strong>'+(contProm>0?(sumaPromTotal/contProm).toFixed(1):'-')+'</strong></td>';
+filaTotales+='</tr>';
+body.innerHTML=htmlBody+filaTotales;
+}
+
+function actualizarGraficos(){
+try{
+const lecturasActuales=obtenerLecturasActuales();
+const datos=cargarDatosGuardados();
+Object.values(charts).forEach(c=>{if(c)c.destroy();});
+charts={};
+const nombres=apartamentos.map(a=>a.nombre.replace('Apartamento ','Apto '));
+const consumosMes=apartamentos.map(apto=>{
+const c=calcularConsumosApartamento(apto.id,lecturasActuales[apto.id]);
+return c.consumoMes||0;
+});
+const consumosSemana=apartamentos.map(apto=>{
+const c=calcularConsumosApartamento(apto.id,lecturasActuales[apto.id]);
+return c.consumoSemana||0;
+});
+charts.barras=new Chart(document.getElementById('graficoBarras'),{type:'bar',data:{labels:nombres,datasets:[{label:'Consumo del Mes',data:consumosMes,backgroundColor:'rgba(102,126,234,.6)',borderColor:'rgb(102,126,234)',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false}});
+const labelsTorta=nombres.filter((_,i)=>consumosMes[i]>0);
+const dataTorta=consumosMes.filter(c=>c>0);
+if(dataTorta.length>0){
+charts.torta=new Chart(document.getElementById('graficoTorta'),{type:'pie',data:{labels:labelsTorta,datasets:[{data:dataTorta,backgroundColor:['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF','#FF9F40','#FF6384','#36A2EB','#4BC0C0','#9966FF']}]},options:{responsive:true,maintainAspectRatio:false}});
+}
+const fechas=datos.lecturas.slice(-10).map(r=>r.fecha);
+const evolucionDatasets=apartamentos.slice(0,5).map((apto,index)=>({label:apto.nombre,data:datos.lecturas.slice(-10).map(r=>r.lecturas[apto.id]||0),borderColor:'hsl('+(index*70)+',70%,50%)',fill:false}));
+charts.linea=new Chart(document.getElementById('graficoLinea'),{type:'line',data:{labels:fechas,datasets:evolucionDatasets},options:{responsive:true,maintainAspectRatio:false}});
+charts.comparativo=new Chart(document.getElementById('graficoComparativo'),{type:'radar',data:{labels:nombres,datasets:[{label:'Consumo Semanal',data:consumosSemana,backgroundColor:'rgba(102,126,234,.2)',borderColor:'rgb(102,126,234)'}]},options:{responsive:true,maintainAspectRatio:false}});
+}catch(err){
+console.error('Error al generar gráficos:',err);
+}
+}
+
+function cargarHistorial(){
+const datos=cargarDatosGuardados();
+const cuerpo=document.getElementById('cuerpoHistorial');
+const filtroFecha=document.getElementById('filtroFecha').value;
+const filtroApto=document.getElementById('filtroApartamento').value;
+cuerpo.innerHTML='';
+datos.lecturas.forEach(registro=>{
+if(filtroFecha&&registro.fecha!==filtroFecha)return;
+apartamentos.forEach(apto=>{
+if(filtroApto&&filtroApto!==apto.id)return;
+const lectura=registro.lecturas[apto.id];
+if(lectura!==null&&lectura!==undefined){
+const fila=document.createElement('tr');
+fila.innerHTML='<td>'+registro.fecha+'</td><td>'+apto.nombre+'</td><td>'+lectura.toLocaleString()+'</td>';
+cuerpo.appendChild(fila);
+}
+});
+});
+}
+
+function exportarHistorial(){
+const datos=cargarDatosGuardados();
+const wb=XLSX.utils.book_new();
+const data=[['Fecha','Apartamento','Lectura']];
+datos.lecturas.forEach(registro=>{
+apartamentos.forEach(apto=>{
+const lectura=registro.lecturas[apto.id];
+if(lectura!==null)data.push([registro.fecha,apto.nombre,lectura]);
+});
+});
+const ws=XLSX.utils.aoa_to_sheet(data);
+XLSX.utils.book_append_sheet(wb,ws,'Historial');
+XLSX.writeFile(wb,'historial_agua_'+new Date().toISOString().split('T')[0]+'.xlsx');
+}
+
+function cargarUltimaLectura(){
+const datos=cargarDatosGuardados();
+if(datos.lecturas.length===0){alert('No hay lecturas guardadas');return;}
+const ultima=datos.lecturas[datos.lecturas.length-1];
+document.getElementById('fechaLectura').value=ultima.fecha;
+apartamentos.forEach(apto=>{
+const input=document.getElementById('lectura_'+apto.id);
+if(ultima.lecturas[apto.id]!==undefined)input.value=ultima.lecturas[apto.id];
+});
+actualizarConsumos();
+}
+
+function limpiarCampos(){
+document.getElementById('fechaLectura').value='';
+apartamentos.forEach(apto=>{
+document.getElementById('lectura_'+apto.id).value='';
+});
+actualizarConsumos();
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+generarInputsLecturas();
+const datos=cargarDatosGuardados();
+if(datos.ultimaFecha)document.getElementById('fechaLectura').value=datos.ultimaFecha;
+document.getElementById('fechaLectura').addEventListener('change',actualizarConsumos);
+apartamentos.forEach(apto=>{
+document.getElementById('lectura_'+apto.id).addEventListener('input',actualizarConsumos);
+});
+});
+</script>
+</body>
+</html>
